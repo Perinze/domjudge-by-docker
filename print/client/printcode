@@ -1,0 +1,23 @@
+#!/bin/bash
+
+server="$printhost:8000"
+logfile="/print.log"
+
+if [ "$#" -ne 4 ]; then
+    echo "usage: printcode TEAM LOCATION FILENAME FILE"
+    exit 1
+fi
+
+teamid=$1
+location=$2
+filename=$3
+tmpfile=$4
+
+cp $tmpfile $tmpfile.bak
+sed -i.bak "1s/^/$filename $teamid #$location\n\n/" $tmpfile
+
+echo "print request at $(date)" >> $logfile
+cat $tmpfile >> $logfile
+
+curl http://$server/print \
+  -L -F "file=@$tmpfile"

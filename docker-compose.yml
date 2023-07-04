@@ -1,0 +1,92 @@
+version: '3.9'
+
+networks:
+  domjudge:
+    name: domjudge
+
+services:
+  mariadb:
+    container_name: mariadb
+    image: mariadb:latest
+    networks:
+      - domjudge
+    ports:
+      - 13306:3306
+    environment:
+      - CONTAINER_TIMEZONE=Asia/Shanghai
+      - MYSQL_ROOT_PASSWORD=$db_root_passwd
+      - MYSQL_USER=$db_user
+      - MYSQL_PASSWORD=$db_passwd
+      - MYSQL_DATABASE=$db_database
+    command: --max-connections=1000 --innodb-log-file-size=496M --max-allowed-packet=98M
+
+  domserver:
+    container_name: domserver
+    image: domjudge/domserver:latest
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /var/local/print:/var/local/print
+    networks:
+      - domjudge
+    ports:
+      - 80:80
+    depends_on:
+      - mariadb
+    environment:
+      - CONTAINER_TIMEZONE=Asia/Shanghai
+      - MYSQL_HOST=mariadb
+      - MYSQL_ROOT_PASSWORD=$db_root_passwd
+      - MYSQL_USER=$db_user
+      - MYSQL_PASSWORD=$db_passwd
+      - MYSQL_DATABASE=$db_database
+
+  cds:
+    container_name: cds
+    image: ghcr.io/icpctools/cds:2.5.936
+    volumes:
+      - ./accounts.yaml:/opt/wlp/usr/servers/cds/config/accounts.yaml
+    networks:
+      - domjudge
+    ports:
+      - 8080:8080
+      - 8443:8443
+    depends_on:
+      - domserver
+    environment:
+      - CCS_URL=http://domserver/api/contests/$cid
+      - CCS_USER=$ccs_user
+      - CCS_PASSWORD=$ccs_passwd
+
+  judgehost-0:
+    container_name: judgehost-0
+    image: domjudge/judgehost:latest
+    privileged: true
+    hostname: judgedaemon-0
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    networks:
+      - domjudge
+    depends_on:
+      - domserver
+    environment:
+      - CONTAINER_TIMEZONE=Asia/Shanghai
+      - DOMSERVER_BASEURL=http://domserver/
+      - DAEMON_ID=0
+      - JUDGEDAEMON_PASSWORD=$restapi_key
+
+  judgehost-1:
+    container_name: judgehost-1
+    image: domjudge/judgehost:latest
+    privileged: true
+    hostname: judgedaemon-1
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    networks:
+      - domjudge
+    depends_on:
+      - domserver
+    environment:
+      - CONTAINER_TIMEZONE=Asia/Shanghai
+      - DOMSERVER_BASEURL=http://domserver/
+      - DAEMON_ID=1
+      - JUDGEDAEMON_PASSWORD=$restapi_key
